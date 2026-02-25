@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  easy-multi-profiler:
+    build: .
+    ports:
+      - "8080:5000"
+    volumes:
+      - ./data/uploads:/app/backend/data/uploads
+      - ./data/results:/app/backend/data/results
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    container_name: easy-multi-profiler-web
