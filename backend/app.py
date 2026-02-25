@@ -242,7 +242,7 @@ def analyze():
     })
 
 def run_analysis(task_id, file_id, module, params, result_dir):
-    """在后台执行 R 分析"""
+    """在后台执行 R 分析 - 统一调用R包函数"""
     task = tasks[task_id]
     upload_dir = os.path.join(UPLOAD_FOLDER, file_id)
     
@@ -255,22 +255,35 @@ def run_analysis(task_id, file_id, module, params, result_dir):
 
     data_file = os.path.join(upload_dir, data_files[0])
     
+    # 查找metadata文件（可选）
+    metadata_file = None
+    meta_files = [f for f in os.listdir(upload_dir) if 'metadata' in f.lower()]
+    if meta_files:
+        metadata_file = os.path.join(upload_dir, meta_files[0])
+    
     # 更新状态
     task['status'] = 'running'
     task['progress'] = 10
     task['message'] = '正在初始化分析环境...'
     
     try:
-        # 构建 R 脚本命令
-        r_script = os.path.join(R_SCRIPTS_DIR, f'{module}_analysis.R')
+        # 统一的R包函数调用方式
+        r_script = os.path.join(R_SCRIPTS_DIR, 'emp_wrapper.R')
         
-        # 特殊处理：cutntag 和 cutnrun 共用一个脚本
-        if module in ['cutntag', 'cutnrun']:
-            r_script = os.path.join(R_SCRIPTS_DIR, 'cuttag_run_analysis.R')
+        # 模块名映射到R包函数名
+        function_map = {
+            'rnaseq': 'EMP_rnaseq_analysis',
+            'proteomics': 'EMP_proteomics_analysis',
+            'scrna': 'EMP_scrnaseq_analysis',
+            'microbiome': 'EMP_microbiome_analysis',
+            'chipseq': 'EMP_chipseq_analysis',
+            'cutntag': 'EMP_cutntag_analysis',
+            'cutnrun': 'EMP_cutnrun_analysis',
+            'metabolome': 'EMP_metabolome_analysis',
+            'integration': 'EMP_multiomics_integration'
+        }
         
-        # 如果模块特定的脚本不存在，使用通用脚本
-        if not os.path.exists(r_script):
-            r_script = os.path.join(R_SCRIPTS_DIR, 'generic_analysis.R')
+        emp_function = function_map.get(module, f'EMP_{module}_analysis')
         
         # 准备参数
         params_json = json.dumps(params)
@@ -278,18 +291,19 @@ def run_analysis(task_id, file_id, module, params, result_dir):
         # 构建命令
         cmd = [
             'Rscript', r_script,
+            '--function', emp_function,
             '--input', data_file,
             '--output', result_dir,
             '--params', params_json,
             '--task-id', task_id
         ]
         
-        # 对 cutntag/cutnrun 添加 mode 参数
-        if module in ['cutntag', 'cutnrun']:
-            cmd.extend(['--mode', module])
+        # 添加metadata（如果有）
+        if metadata_file:
+            cmd.extend(['--metadata', metadata_file])
         
         task['progress'] = 20
-        task['message'] = '正在运行分析...'
+        task['message'] = f'正在运行 {emp_function}...'
         
         # 执行 R 脚本
         process = subprocess.Popen(
@@ -301,14 +315,16 @@ def run_analysis(task_id, file_id, module, params, result_dir):
         
         stdout, stderr = process.communicate()
         
+        # 记录日志
+        task['log'] = stdout + '\n' + stderr
+        
         if process.returncode != 0:
             task['status'] = 'failed'
-            task['message'] = f'分析执行失败: {stderr}'
-            task['log'] = stdout + '\n' + stderr
+            task['message'] = f'分析执行失败: {stderr[:500]}'
             return
         
         task['progress'] = 80
-        task['message'] = '正在生成结果...'
+        task['message'] = '正在处理结果...'
         
         # 处理结果
         process_results(task, result_dir)
@@ -316,9 +332,8 @@ def run_analysis(task_id, file_id, module, params, result_dir):
         task['status'] = 'completed'
         task['progress'] = 100
         task['message'] = '分析完成'
-        task['log'] = stdout
         
-    except Exception as e:
+    } catch Exception as e:
         task['status'] = 'failed'
         task['message'] = f'分析异常: {str(e)}'
 
