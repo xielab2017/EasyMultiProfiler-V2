@@ -154,6 +154,105 @@ function AnalysisPanel({ module, uploadedData, onSubmit, onBack }) {
           </>
         );
 
+      case 'rnaseq':
+        return (
+          <>
+            <Divider orientation="left">差异表达分析</Divider>
+            <Form.Item name={['de', 'method']} label="分析方法" initialValue="deseq2">
+              <Select>
+                <Option value="deseq2">DESeq2</Option>
+                <Option value="edger">edgeR</Option>
+                <Option value="limma">limma-voom</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item name={['de', 'fc_threshold']} label="Fold Change 阈值" initialValue={2}>
+              <InputNumber min={1.2} max={10} step={0.1} />
+            </Form.Item>
+
+            <Form.Item name={['de', 'pvalue']} label="p值阈值" initialValue={0.05}>
+              <Slider min={0.001} max={0.1} step={0.001} />
+            </Form.Item>
+
+            <Divider orientation="left">富集分析</Divider>
+            <Form.Item name={['enrichment', 'database']} label="数据库" initialValue="go_kegg">
+              <Select>
+                <Option value="go_kegg">GO + KEGG</Option>
+                <Option value="go_only">仅 GO</Option>
+                <Option value="kegg_only">仅 KEGG</Option>
+                <Option value="reactome">Reactome</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item name={['enrichment', 'gsea']} label="启用 GSEA" valuePropName="checked" initialValue={true}>
+              <Switch />
+            </Form.Item>
+
+            <Divider orientation="left">可视化</Divider>
+            <Form.Item name={['viz', 'volcano']} label="火山图" valuePropName="checked" initialValue={true}>
+              <Switch />
+            </Form.Item>
+
+            <Form.Item name={['viz', 'heatmap']} label="差异基因热图" valuePropName="checked" initialValue={true}>
+              <Switch />
+            </Form.Item>
+
+            <Form.Item name={['viz', 'ma_plot']} label="MA Plot" valuePropName="checked" initialValue={true}>
+              <Switch />
+            </Form.Item>
+          </>
+        );
+
+      case 'proteomics':
+        return (
+          <>
+            <Divider orientation="left">数据预处理</Divider>
+            <Form.Item name={['preprocess', 'normalization']} label="归一化方法" initialValue="median">
+              <Select>
+                <Option value="median">Median</Option>
+                <Option value="quantile">Quantile</Option>
+                <Option value="zscore">Z-score</Option>
+                <Option value="none">None</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item name={['preprocess', 'imputation']} label="缺失值填充" initialValue="knn">
+              <Select>
+                <Option value="knn">KNN</Option>
+                <Option value="min">Minimum</Option>
+                <Option value="median">Median</Option>
+                <Option value="none">Skip</Option>
+              </Select>
+            </Form.Item>
+
+            <Divider orientation="left">差异分析</Divider>
+            <Form.Item name={['de', 'method']} label="统计方法" initialValue="limma">
+              <Select>
+                <Option value="limma">Limma</Option>
+                <Option value="t_test">t 检验</Option>
+                <Option value="anova">ANOVA</Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item name={['de', 'fc_threshold']} label="Fold Change 阈值" initialValue={1.5}>
+              <InputNumber min={1.1} max={10} step={0.1} />
+            </Form.Item>
+
+            <Divider orientation="left">功能分析</Divider>
+            <Form.Item name={['function', 'pathway']} label="通路分析" valuePropName="checked" initialValue={true}>
+              <Switch />
+            </Form.Item>
+
+            <Form.Item name={['function', 'ppi']} label="PPI网络分析" valuePropName="checked" initialValue={false}>
+              <Switch />
+            </Form.Item>
+
+            <Form.Item name={['function', 'biomarker']} label="标志物筛选" valuePropName="checked" initialValue={false}>
+              <Switch />
+            </Form.Item>
+          </>
+        );
+
       default:
         return <Alert message="此模块的配置参数正在开发中" type="info" />;
     }

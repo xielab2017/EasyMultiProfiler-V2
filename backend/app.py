@@ -52,10 +52,38 @@ def get_modules():
     """获取可用分析模块"""
     modules = [
         {
+            'id': 'rnaseq',
+            'name': 'RNA-seq分析',
+            'icon': '📊',
+            'features': ['差异表达', '火山图', '热图', 'GO/KEGG富集', 'GSEA'],
+            'status': 'ready'
+        },
+        {
+            'id': 'proteomics',
+            'name': '蛋白质组学',
+            'icon': '🧪',
+            'features': ['蛋白定量', '差异分析', '通路分析', 'PPI网络', '标志物筛选'],
+            'status': 'ready'
+        },
+        {
+            'id': 'scrna',
+            'name': '单细胞RNA-seq',
+            'icon': '🧫',
+            'features': ['聚类', '标记基因', '轨迹分析', '细胞注释'],
+            'status': 'ready'
+        },
+        {
             'id': 'microbiome',
             'name': '微生物组分析',
             'icon': '🦠',
             'features': ['α多样性', 'β多样性', '网络分析', '差异分析'],
+            'status': 'ready'
+        },
+        {
+            'id': 'metabolome',
+            'name': '代谢组分析',
+            'icon': '⚗️',
+            'features': ['通路分析', '差异代谢物', '富集分析'],
             'status': 'ready'
         },
         {
@@ -77,20 +105,6 @@ def get_modules():
             'name': 'CUT&RUN分析',
             'icon': '🔬',
             'features': ['Peak calling', 'QC报告', '注释'],
-            'status': 'ready'
-        },
-        {
-            'id': 'scrna',
-            'name': '单细胞RNA-seq',
-            'icon': '🧫',
-            'features': ['聚类', '标记基因', '轨迹分析', '细胞注释'],
-            'status': 'ready'
-        },
-        {
-            'id': 'metabolome',
-            'name': '代谢组分析',
-            'icon': '⚗️',
-            'features': ['通路分析', '差异代谢物', '富集分析'],
             'status': 'ready'
         },
         {

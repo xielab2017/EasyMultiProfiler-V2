@@ -23,12 +23,14 @@ const STEPS = [
 ];
 
 const MODULES = [
+  { id: 'rnaseq', name: 'RNA-seq分析', icon: '📊', features: ['差异表达', '火山图', '热图', 'GO/KEGG富集', 'GSEA'] },
+  { id: 'proteomics', name: '蛋白质组学', icon: '🧪', features: ['蛋白定量', '差异分析', '通路分析', 'PPI网络', '标志物筛选'] },
+  { id: 'scrna', name: '单细胞RNA-seq', icon: '🧫', features: ['聚类', '标记基因', '轨迹分析', '细胞注释'] },
   { id: 'microbiome', name: '微生物组分析', icon: '🦠', features: ['α多样性', 'β多样性', '网络分析', '差异分析'] },
+  { id: 'metabolome', name: '代谢组分析', icon: '⚗️', features: ['通路分析', '差异代谢物', '富集分析'] },
   { id: 'chipseq', name: 'ChIP-seq分析', icon: '🧬', features: ['Peak calling', 'Motif分析', '注释', '差异Peak'] },
   { id: 'cutntag', name: 'CUT&Tag分析', icon: '✂️', features: ['Peak检测', '富集分析', '可视化'] },
   { id: 'cutnrun', name: 'CUT&RUN分析', icon: '🔬', features: ['Peak calling', 'QC报告', '注释'] },
-  { id: 'scrna', name: '单细胞RNA-seq', icon: '🧫', features: ['聚类', '标记基因', '轨迹分析', '细胞注释'] },
-  { id: 'metabolome', name: '代谢组分析', icon: '⚗️', features: ['通路分析', '差异代谢物', '富集分析'] },
   { id: 'integration', name: '多组学整合', icon: '🔗', features: ['相关性分析', '网络整合', '联合可视化'] }
 ];
 
