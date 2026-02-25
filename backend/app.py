@@ -40,7 +40,7 @@ def allowed_file(filename):
 def health():
     """健康检查接口"""
     return jsonify({
-        'status': 'ok', 
+        'status': 'ok',
         'service': 'EasyMultiProfiler',
         'version': '2.0.0',
         'timestamp': datetime.now().isoformat()
@@ -123,39 +123,39 @@ def upload_file():
     """上传数据文件"""
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': '没有文件'}), 400
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({'success': False, 'message': '文件名不能为空'}), 400
-    
+
     if not allowed_file(file.filename):
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': f'不支持的文件格式。请上传: {", ".join(ALLOWED_EXTENSIONS)}'
         }), 400
-    
+
     # 检查文件大小
     file.seek(0, 2)  # 移动到文件末尾
     file_size = file.tell()
     file.seek(0)  # 回到文件开头
-    
+
     if file_size > MAX_FILE_SIZE:
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': f'文件大小超过限制 ({MAX_FILE_SIZE / 1024 / 1024}MB)'
         }), 400
-    
+
     # 生成唯一ID
     file_id = str(uuid.uuid4())
     filename = secure_filename(file.filename)
     file_ext = filename.rsplit('.', 1)[1].lower()
-    
+
     # 保存文件
     upload_dir = os.path.join(UPLOAD_FOLDER, file_id)
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, f'data.{file_ext}')
     file.save(file_path)
-    
+
     try:
         # 读取数据获取基本信息
         if file_ext in ['xls', 'xlsx']:
@@ -164,10 +164,10 @@ def upload_file():
             df = pd.read_csv(file_path)
         else:  # tsv, txt
             df = pd.read_csv(file_path, sep='\t')
-        
+
         # 获取预览数据
         preview = df.head(10).to_dict('records')
-        
+
         return jsonify({
             'success': True,
             'file_id': file_id,
@@ -178,12 +178,12 @@ def upload_file():
             'preview': preview,
             'file_path': file_path
         })
-        
+
     except Exception as e:
         # 清理上传的文件
         shutil.rmtree(upload_dir, ignore_errors=True)
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': f'文件解析失败: {str(e)}'
         }), 400
 
@@ -192,30 +192,30 @@ def upload_file():
 def analyze():
     """提交分析任务"""
     data = request.json
-    
+
     if not data or 'file_id' not in data or 'module' not in data:
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': '缺少必要参数: file_id, module'
         }), 400
-    
+
     file_id = data['file_id']
     module = data['module']
     params = data.get('params', {})
-    
+
     # 检查文件是否存在
     upload_dir = os.path.join(UPLOAD_FOLDER, file_id)
     if not os.path.exists(upload_dir):
         return jsonify({
-            'success': False, 
+            'success': False,
             'message': '文件不存在或已过期'
         }), 404
-    
+
     # 生成任务ID
     task_id = str(uuid.uuid4())
     result_dir = os.path.join(RESULTS_FOLDER, task_id)
     os.makedirs(result_dir, exist_ok=True)
-    
+
     # 保存任务信息
     tasks[task_id] = {
         'task_id': task_id,
@@ -228,12 +228,12 @@ def analyze():
         'created_at': datetime.now().isoformat(),
         'result_dir': result_dir
     }
-    
+
     # 异步执行分析
     thread = threading.Thread(target=run_analysis, args=(task_id, file_id, module, params, result_dir))
     thread.daemon = True
     thread.start()
-    
+
     return jsonify({
         'success': True,
         'task_id': task_id,
@@ -252,7 +252,7 @@ def run_analysis(task_id, file_id, module, params, result_dir):
         task['status'] = 'failed'
         task['message'] = '数据文件不存在'
         return
-    
+
     data_file = os.path.join(upload_dir, data_files[0])
     
     # 更新状态
@@ -263,6 +263,10 @@ def run_analysis(task_id, file_id, module, params, result_dir):
     try:
         # 构建 R 脚本命令
         r_script = os.path.join(R_SCRIPTS_DIR, f'{module}_analysis.R')
+        
+        # 特殊处理：cutntag 和 cutnrun 共用一个脚本
+        if module in ['cutntag', 'cutnrun']:
+            r_script = os.path.join(R_SCRIPTS_DIR, 'cuttag_run_analysis.R')
         
         # 如果模块特定的脚本不存在，使用通用脚本
         if not os.path.exists(r_script):
@@ -276,10 +280,13 @@ def run_analysis(task_id, file_id, module, params, result_dir):
             'Rscript', r_script,
             '--input', data_file,
             '--output', result_dir,
-            '--module', module,
             '--params', params_json,
             '--task-id', task_id
         ]
+        
+        # 对 cutntag/cutnrun 添加 mode 参数
+        if module in ['cutntag', 'cutnrun']:
+            cmd.extend(['--mode', module])
         
         task['progress'] = 20
         task['message'] = '正在运行分析...'
@@ -322,12 +329,12 @@ def process_results(task, result_dir):
         'tables': [],
         'stats': {}
     }
-    
+
     # 扫描结果目录
     if os.path.exists(result_dir):
         for filename in os.listdir(result_dir):
             filepath = os.path.join(result_dir, filename)
-            
+
             # 图片文件
             if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.svg', '.pdf')):
                 task['results']['plots'].append({
@@ -335,7 +342,7 @@ def process_results(task, result_dir):
                     'url': f'/api/results/{task["task_id"]}/download/{filename}',
                     'download_url': f'/api/results/{task["task_id"]}/download/{filename}'
                 })
-            
+
             # 表格文件
             elif filename.lower().endswith(('.csv', '.tsv', '.xlsx')):
                 try:
@@ -345,7 +352,7 @@ def process_results(task, result_dir):
                         df = pd.read_csv(filepath, sep='\t')
                     else:
                         df = pd.read_excel(filepath)
-                    
+
                     task['results']['tables'].append({
                         'title': os.path.splitext(filename)[0],
                         'data': df.head(100).to_dict('records'),
@@ -354,7 +361,7 @@ def process_results(task, result_dir):
                     })
                 except:
                     pass
-            
+
             # 统计文件
             elif filename == 'stats.json':
                 try:
@@ -362,7 +369,7 @@ def process_results(task, result_dir):
                         task['results']['stats'] = json.load(f)
                 except:
                     pass
-            
+
             # 报告文件
             elif filename.lower().endswith(('.html', '.pdf')) and 'report' in filename.lower():
                 task['results']['report_url'] = f'/api/results/{task["task_id"]}/download/{filename}'
@@ -376,7 +383,7 @@ def get_status(task_id):
             'success': False,
             'message': '任务不存在'
         }), 404
-    
+
     task = tasks[task_id]
     return jsonify({
         'success': True,
@@ -395,9 +402,9 @@ def get_results(task_id):
             'success': False,
             'message': '任务不存在'
         }), 404
-    
+
     task = tasks[task_id]
-    
+
     if task['status'] != 'completed':
         return jsonify({
             'success': False,
@@ -405,7 +412,7 @@ def get_results(task_id):
             'status': task['status'],
             'progress': task['progress']
         }), 400
-    
+
     return jsonify({
         'success': True,
         'task_id': task_id,
@@ -418,10 +425,10 @@ def download_result(task_id, filename):
     """下载结果文件"""
     if task_id not in tasks:
         return jsonify({'success': False, 'message': '任务不存在'}), 404
-    
+
     result_dir = os.path.join(RESULTS_FOLDER, task_id)
     safe_filename = secure_filename(filename)
-    
+
     try:
         return send_from_directory(result_dir, safe_filename, as_attachment=True)
     except FileNotFoundError:
@@ -448,7 +455,7 @@ def cleanup():
     """清理过期的上传文件和结果（管理员接口）"""
     # 这里应该添加认证检查
     max_age_days = 7
-    
+
     def cleanup_dir(directory):
         count = 0
         now = time.time()
@@ -460,10 +467,10 @@ def cleanup():
                     shutil.rmtree(item_path)
                     count += 1
         return count
-    
+
     upload_count = cleanup_dir(UPLOAD_FOLDER)
     result_count = cleanup_dir(RESULTS_FOLDER)
-    
+
     return jsonify({
         'success': True,
         'message': f'清理完成: {upload_count} 个上传, {result_count} 个结果'
@@ -490,12 +497,12 @@ def serve_index(path):
     # API 路由直接返回 404
     if path.startswith('api/'):
         return jsonify({'success': False, 'message': 'API 路由不存在'}), 404
-    
+
     # 返回 index.html
     index_path = os.path.join(STATIC_FOLDER, 'index.html')
     if os.path.exists(index_path):
         return send_from_directory(STATIC_FOLDER, 'index.html')
-    
+
     # 静态文件不存在，返回 API 状态
     return jsonify({
         'message': 'EasyMultiProfiler API 服务运行中',
