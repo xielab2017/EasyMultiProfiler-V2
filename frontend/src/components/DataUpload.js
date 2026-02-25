@@ -35,10 +35,19 @@ function DataUpload({ onUpload }) {
     setError(null);
 
     try {
-      const response = await fetch('/api/upload', {
+      // 使用完整 URL 或相对路径
+      const apiUrl = window.location.origin + '/api/upload';
+      console.log('Uploading to:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        body: formData
+        body: formData,
+        // 不设置 Content-Type，让浏览器自动设置（包含 boundary）
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
       const result = await response.json();
 
@@ -50,7 +59,12 @@ function DataUpload({ onUpload }) {
         setError(result.message || '上传失败');
       }
     } catch (err) {
-      setError('上传错误: ' + err.message);
+      console.error('Upload error:', err);
+      if (err.message.includes('Failed to fetch')) {
+        setError('无法连接到后端服务。请确保后端已启动: cd backend && python app.py');
+      } else {
+        setError('上传错误: ' + err.message);
+      }
     } finally {
       setUploading(false);
     }
