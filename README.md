@@ -27,8 +27,21 @@ docker-compose up -d
 
 ### 方式2: 本地开发
 
-**前端:**
+开发模式下，前端和后端分别运行在不同的端口：
+
+**1. 启动后端 (端口 5000):**
 ```bash
+cd backend
+pip install -r requirements.txt
+python app.py
+
+# 后端 API 地址: http://localhost:5000
+# 测试: curl http://localhost:5000/api/health
+```
+
+**2. 启动前端 (端口 3000):**
+```bash
+# 新开一个终端
 cd frontend
 
 # 如果之前运行过 npm audit fix --force，先删除 node_modules
@@ -39,21 +52,14 @@ npm install
 
 # 启动开发服务器
 npm start
+
+# 前端访问: http://localhost:3000
 ```
 
-**后端:**
-```bash
-cd backend
-
-# 安装依赖（建议使用虚拟环境）
-pip install -r requirements.txt
-
-# 启动服务（生产模式，避免 watchdog 问题）
-python app.py
-
-# 或启用调试模式（需要安装 watchdog）
-# FLASK_DEBUG=true python app.py
-```
+**3. 使用:**
+- 打开浏览器访问 **http://localhost:3000** 使用前端界面
+- 后端 API 运行在 **http://localhost:5000**
+- 前端通过 proxy 配置自动转发 API 请求到后端
 
 ## 常见问题
 

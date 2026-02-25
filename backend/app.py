@@ -455,6 +455,45 @@ def cleanup():
         'message': f'清理完成: {upload_count} 个上传, {result_count} 个结果'
     })
 
+# ============ 前端静态文件服务 ============
+# 开发模式：前端独立运行在 3000 端口
+# 生产模式：Flask 直接服务静态文件
+
+STATIC_FOLDER = os.path.join(os.path.dirname(__file__), 'static')
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_static(path):
+    """服务前端静态文件"""
+    # API 路由直接返回 404，避免被静态文件路由捕获
+    if path.startswith('api/'):
+        return jsonify({'success': False, 'message': 'API 路由不存在'}), 404
+    
+    # 检查静态文件夹是否存在
+    if os.path.exists(STATIC_FOLDER):
+        # 如果请求的是具体文件，直接返回
+        file_path = os.path.join(STATIC_FOLDER, path)
+        if path and os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_from_directory(STATIC_FOLDER, path)
+        
+        # 否则返回 index.html（单页应用路由）
+        index_path = os.path.join(STATIC_FOLDER, 'index.html')
+        if os.path.exists(index_path):
+            return send_from_directory(STATIC_FOLDER, 'index.html')
+    
+    # 静态文件不存在，返回开发模式提示
+    return jsonify({
+        'message': 'EasyMultiProfiler API 服务运行中',
+        'status': 'ok',
+        'note': '前端开发模式请访问 http://localhost:3000',
+        'api_endpoints': [
+            '/api/health',
+            '/api/modules',
+            '/api/upload',
+            '/api/analyze'
+        ]
+    })
+
 if __name__ == '__main__':
     # 生产环境建议关闭 debug 模式，避免 watchdog 热重载问题
     debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
