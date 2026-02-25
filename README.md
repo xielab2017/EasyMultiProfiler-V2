@@ -30,15 +30,66 @@ docker-compose up -d
 **前端:**
 ```bash
 cd frontend
+
+# 如果之前运行过 npm audit fix --force，先删除 node_modules
+rm -rf node_modules package-lock.json
+
+# 重新安装依赖
 npm install
+
+# 启动开发服务器
 npm start
 ```
 
 **后端:**
 ```bash
 cd backend
+
+# 安装依赖（建议使用虚拟环境）
 pip install -r requirements.txt
+
+# 启动服务（生产模式，避免 watchdog 问题）
 python app.py
+
+# 或启用调试模式（需要安装 watchdog）
+# FLASK_DEBUG=true python app.py
+```
+
+## 常见问题
+
+### 1. Flask 启动报错: `ImportError: cannot import name 'EVENT_TYPE_OPENED'`
+
+**原因**: watchdog 版本不兼容
+
+**解决方案**:
+```bash
+# 方案1: 使用默认启动（推荐，生产模式）
+python app.py
+
+# 方案2: 更新 watchdog
+pip install --upgrade watchdog
+```
+
+### 2. 前端启动报错: `react-scripts: command not found`
+
+**原因**: npm audit fix --force 破坏了依赖
+
+**解决方案**:
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+npm start
+```
+
+### 3. 依赖冲突警告
+
+这些警告通常不影响运行，因为不同包依赖的 numpy 版本不同。如果确实遇到问题，建议使用 conda 虚拟环境：
+
+```bash
+conda create -n easymulti python=3.11
+conda activate easymulti
+pip install -r backend/requirements.txt
 ```
 
 ## 系统架构
