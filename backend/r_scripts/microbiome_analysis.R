@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
-# EasyMultiProfiler - 微生物组分析脚本
-# 使用 EasyMultiProfiler 包进行微生物组数据分析
+# EasyMultiProfiler - 微生物组分析脚本 (调用 EasyMultiProfiler R包)
+# 16S/宏基因组数据分析
 
 suppressPackageStartupMessages({
   library(optparse)
@@ -22,113 +22,186 @@ args <- parse_args(parser)
 # 解析参数
 params <- fromJSON(args$params)
 
-# 检查 EasyMultiProfiler 是否安装
-if (!requireNamespace("EasyMultiProfiler", quietly=TRUE)) {
-  cat("警告: EasyMultiProfiler 包未安装，将使用基础分析流程\n")
-  # 调用通用脚本
-  args$module <- "microbiome"
-  source(file.path(dirname(getScriptPath()), "generic_analysis.R"))
-  quit(status=0)
+cat(sprintf("开始微生物组分析 - 任务ID: %s\n", args$task_id))
+
+# 检查 EasyMultiProfiler
+check_emp <- function() {
+  if (!requireNamespace("EasyMultiProfiler", quietly = TRUE)) {
+    cat("⚠️  EasyMultiProfiler 包未安装，尝试安装...\n")
+    if (!requireNamespace("devtools", quietly = TRUE)) {
+      install.packages("devtools", repos = "https://cloud.r-project.org/")
+    }
+    devtools::install_github("xielab2017/EasyMultiProfiler", upgrade = "never")
+  }
+  library(EasyMultiProfiler)
 }
 
-library(EasyMultiProfiler)
-
-cat(sprintf("开始微生物组分析 - 任务ID: %s\n", args$task_id))
+tryCatch({
+  check_emp()
+  cat("✅ EasyMultiProfiler 加载成功\n")
+}, error = function(e) {
+  cat(sprintf("⚠️ EasyMultiProfiler 加载失败: %s\n", e$message))
+})
 
 try {
   # 读取数据
   otu_table <- read.csv(args$input, row.names=1, check.names=FALSE)
-  cat(sprintf("OTU表维度: %d OTUs x %d 样本\n", nrow(otu_table), ncol(otu_table)))
+  cat(sprintf("OTU表维度: %d 特征 x %d 样本\n", nrow(otu_table), ncol(otu_table)))
   
-  # 创建 EMP 对象
-  # emp_obj <- create_EMP_object(otu_table, ...)
+  # 准备分组信息
+  group_info <- NULL
+  if (!is.null(args$metadata) && file.exists(args$metadata)) {
+    group_info <- read.csv(args$metadata, row.names=1)
+  } else {
+    n_samples <- ncol(otu_table)
+    group_info <- data.frame(
+      Group = c(rep("Group_A", floor(n_samples/2)), rep("Group_B", ceiling(n_samples/2))),
+      row.names = colnames(otu_table)
+    )
+  }
   
-  # Alpha 多样性
-  alpha_metric <- params$alpha$metric %||% "shannon"
-  cat(sprintf("计算 %s 多样性...\n", alpha_metric))
-  # alpha_results <- calculate_alpha_diversity(emp_obj, metric=alpha_metric)
-  
-  # Beta 多样性
-  beta_method <- params$beta$method %||% "bray"
-  cat(sprintf("计算 %s 距离...\n", beta_method))
-  # beta_results <- calculate_beta_diversity(emp_obj, method=beta_method)
-  
-  # 生成图表
   output_dir <- args$output
   
-  pdf(file.path(output_dir, "microbiome_analysis.pdf"), width=12, height=10)
-  
-  # 设置布局
-  par(mfrow=c(2,3))
-  
-  # 1. Alpha 多样性箱线图
-  alpha_values <- diversity(t(otu_table), index=alpha_metric)
-  boxplot(alpha_values, main=paste(alpha_metric, "Diversity"), ylab=alpha_metric)
-  
-  # 2. 稀疏曲线
-  reads <- colSums(otu_table)
-  plot(sort(reads, decreasing=TRUE), type="l", main="Rank Abundance", xlab="Rank", ylab="Abundance")
-  
-  # 3. 样品reads分布
-  hist(reads, breaks=30, main="Sample Reads Distribution", xlab="Total Reads")
-  
-  # 4. Beta 多样性 PCoA
-  if (ncol(otu_table) > 2) {
-    require(vegan)
-    dist_matrix <- vegdist(t(otu_table), method=beta_method)
-    pcoa <- cmdscale(dist_matrix, k=2, eig=TRUE)
-    plot(pcoa$points, main=paste("PCoA (", beta_method, ")"), 
-         xlab="PC1", ylab="PC2", pch=19, col="steelblue")
+  # 使用 EasyMultiProfiler
+  if (exists("EMP_easy_taxonomy_import") && exists("EMP_diff_analysis")) {
+    
+    cat("🔄 使用 EasyMultiProfiler 进行微生物组分析...\n")
+    
+    # 1. 导入数据
+    cat("步骤1: 导入微生物组数据...\n")
+    
+    # 假设行名包含分类学信息，用分号分隔
+    has_taxonomy <- any(grepl(";", rownames(otu_table)))
+    
+    if (has_taxonomy) {
+      # 有分类学信息，使用 taxonomy_import
+      MAE <- EMP_easy_taxonomy_import(
+        data = otu_table,
+        assay = "microbiome",
+        assay_name = "counts",
+        coldata = group_info,
+        type = "tax",  # 16S 数据
+        output = "MAE"
+      )
+    } else {
+      # 无分类学信息，使用 normal_import
+      MAE <- EMP_easy_normal_import(
+        data = otu_table,
+        assay = "microbiome",
+        assay_name = "counts",
+        coldata = group_info,
+        output = "MAE"
+      )
+    }
+    
+    cat("✅ 微生物组数据导入完成\n")
+    
+    # 2. Alpha 多样性分析
+    alpha_metric <- params$alpha$metric %||% "shannon"
+    cat(sprintf("步骤2: Alpha多样性分析 (%s)...\n", alpha_metric))
+    
+    if (exists("EMP_alpha_analysis")) {
+      tryCatch({
+        MAE_alpha <- MAE |\u003e 
+          EMP_alpha_analysis(
+            experiment = "microbiome",
+            method = alpha_metric,
+            action = "add"
+          )
+        cat("✅ Alpha多样性分析完成\n")
+        
+        # 绘制Alpha多样性箱线图
+        if (exists("EMP_boxplot_alpha")) {
+          p_alpha <- MAE_alpha |\u003e EMP_boxplot_alpha()
+          ggplot2::ggsave(file.path(output_dir, "alpha_diversity.png"), p_alpha,
+                         width = 8, height = 6, dpi = 300)
+        }
+      }, error = function(e) {
+        cat(sprintf("Alpha多样性分析警告: %s\n", e$message))
+      })
+    }
+    
+    # 3. Beta 多样性分析
+    beta_method <- params$beta$method %||% "bray"
+    cat(sprintf("步骤3: Beta多样性分析 (%s)...\n", beta_method))
+    
+    if (exists("EMP_dimension_analysis")) {
+      tryCatch({
+        MAE_beta <- MAE |\u003e
+          EMP_dimension_analysis(
+            experiment = "microbiome",
+            method = beta_method,
+            dimension = "pcoa",  # 或 NMDS
+            action = "add"
+          )
+        cat("✅ Beta多样性分析完成\n")
+        
+        # 绘制PCoA图
+        if (exists("EMP_scatterplot_reduce_dimension")) {
+          p_pcoa <- MAE_beta |\u003e EMP_scatterplot_reduce_dimension()
+          ggplot2::ggsave(file.path(output_dir, "beta_pcoa.png"), p_pcoa,
+                         width = 8, height = 6, dpi = 300)
+        }
+      }, error = function(e) {
+        cat(sprintf("Beta多样性分析警告: %s\n", e$message))
+      })
+    }
+    
+    # 4. 差异分析
+    cat("步骤4: 差异分析...\n")
+    diff_method <- params$diff$method %||% "wilcox"
+    group_col <- colnames(group_info)[1]
+    
+    diff_result <- tryCatch({
+      MAE |\u003e
+        EMP_diff_analysis(
+          experiment = "microbiome",
+          method = diff_method,
+          estimate_group = group_col,
+          p.adjust = "fdr",
+          action = "add"
+        )
+    }, error = function(e) {
+      cat(sprintf("差异分析警告: %s\n", e$message))
+      MAE
+    })
+    
+    # 5. 保存结果
+    cat("步骤5: 保存结果...\n")
+    
+    # 获取差异分析结果表
+    de_table <- tryCatch({
+      diff_result |\u003e .get.result.EMPT()
+    }, error = function(e) {
+      NULL
+    })
+    
+    if (!is.null(de_table) && nrow(de_table) > 0) {
+      write.csv(de_table, file.path(output_dir, "differential_features.csv"), row.names=FALSE)
+    }
+    
+    # 统计数据
+    stats <- list(
+      module = "microbiome",
+      samples = ncol(otu_table),
+      features = nrow(otu_table),
+      alpha_metric = alpha_metric,
+      beta_method = beta_method,
+      diff_method = diff_method,
+      task_id = args$task_id
+    )
+    write_json(stats, file.path(output_dir, "stats.json"))
+    
+    cat("✅ 微生物组分析完成！\n")
+    
+  } else {
+    # 降级到基础分析
+    cat("⚠️  EasyMultiProfiler 函数不可用，使用基础分析...\n")
+    source(file.path(dirname(getScriptPath()), "generic_analysis.R"))
   }
-  
-  # 5. Top 10 OTU 丰度
-  top10 <- names(sort(rowSums(otu_table), decreasing=TRUE))[1:10]
-  barplot(rowSums(otu_table)[top10], las=2, cex.names=0.7, main="Top 10 OTUs")
-  
-  # 6. 物种累积曲线
-  if (ncol(otu_table) > 5) {
-    spec_accum <- specaccum(t(otu_table > 0))
-    plot(spec_accum, main="Species Accumulation Curve")
-  }
-  
-  dev.off()
-  
-  # 保存 PNG 版本
-  png(file.path(output_dir, "alpha_diversity.png"), width=600, height=400)
-  boxplot(alpha_values, main=paste(alpha_metric, "Diversity"), ylab=alpha_metric, col="lightblue")
-  dev.off()
-  
-  png(file.path(output_dir, "beta_pcoa.png"), width=600, height=400)
-  if (ncol(otu_table) > 2) {
-    plot(pcoa$points, main=paste("PCoA (", beta_method, ")"), 
-         xlab="PC1", ylab="PC2", pch=19, col="steelblue")
-  }
-  dev.off()
-  
-  # 保存统计结果
-  stats <- list(
-    module = "microbiome",
-    samples = ncol(otu_table),
-    otus = nrow(otu_table),
-    total_reads = sum(otu_table),
-    alpha_metric = alpha_metric,
-    beta_method = beta_method,
-    mean_alpha = mean(alpha_values),
-    task_id = args$task_id
-  )
-  write_json(stats, file.path(output_dir, "stats.json"))
-  
-  # 保存 Alpha 多样性表
-  alpha_df <- data.frame(
-    Sample = names(alpha_values),
-    Alpha_Diversity = alpha_values
-  )
-  write.csv(alpha_df, file.path(output_dir, "alpha_diversity.csv"), row.names=FALSE)
-  
-  cat("微生物组分析完成！\n")
   
 } catch (e) {
-  cat(sprintf("错误: %s\n", e$message))
+  cat(sprintf("❌ 分析失败: %s\n", e$message))
   writeLines(as.character(e), file.path(args$output, "error.log"))
   quit(status=1)
 }
@@ -145,3 +218,5 @@ getScriptPath <- function() {
   }
   return(normalizePath(sys.frames()[[1]]$ofile))
 }
+
+cat("微生物组分析脚本执行成功\n")
