@@ -461,27 +461,28 @@ def cleanup():
 
 STATIC_FOLDER = os.path.join(os.path.dirname(__file__), 'static')
 
+# 静态文件路由 - 必须在通配符路由之前
+@app.route('/static/<path:filename>')
+def serve_static_files(filename):
+    """服务静态文件 (JS, CSS, 图片等)"""
+    if os.path.exists(STATIC_FOLDER):
+        return send_from_directory(STATIC_FOLDER, filename)
+    return jsonify({'success': False, 'message': '静态文件不存在'}), 404
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def serve_static(path):
-    """服务前端静态文件"""
-    # API 路由直接返回 404，避免被静态文件路由捕获
+def serve_index(path):
+    """服务前端页面 (单页应用路由)"""
+    # API 路由直接返回 404
     if path.startswith('api/'):
         return jsonify({'success': False, 'message': 'API 路由不存在'}), 404
     
-    # 检查静态文件夹是否存在
-    if os.path.exists(STATIC_FOLDER):
-        # 如果请求的是具体文件，直接返回
-        file_path = os.path.join(STATIC_FOLDER, path)
-        if path and os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_from_directory(STATIC_FOLDER, path)
-        
-        # 否则返回 index.html（单页应用路由）
-        index_path = os.path.join(STATIC_FOLDER, 'index.html')
-        if os.path.exists(index_path):
-            return send_from_directory(STATIC_FOLDER, 'index.html')
+    # 返回 index.html
+    index_path = os.path.join(STATIC_FOLDER, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(STATIC_FOLDER, 'index.html')
     
-    # 静态文件不存在，返回开发模式提示
+    # 静态文件不存在，返回 API 状态
     return jsonify({
         'message': 'EasyMultiProfiler API 服务运行中',
         'status': 'ok',
